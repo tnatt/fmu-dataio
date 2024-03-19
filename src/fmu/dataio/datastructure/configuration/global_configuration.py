@@ -160,8 +160,5 @@ def roundtrip(obj: Dict) -> Dict:
     and unset values. This is useful for cleaning and validating configuration data.
     """
     return GlobalConfiguration.model_validate(obj).model_dump(
-        mode="json",
-        exclude_defaults=True,
-        exclude_none=True,
-        exclude_unset=True,
+        mode="json", exclude_none=True
     )

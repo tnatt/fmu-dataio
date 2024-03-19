@@ -142,14 +142,16 @@ def test_populate_meta_undef_is_zero(regsurf, globalconfig2):
 
 def test_metadata_populate_masterdata_is_empty(globalconfig1):
     """Testing the masterdata part, first with no settings."""
+    config = deepcopy(globalconfig1)
+    del config["masterdata"]  # to force missing masterdata
 
-    some = dio.ExportData(config=globalconfig1, content="depth")
-    del some.config["masterdata"]  # to force missing masterdata
+    some = dio.ExportData(config=config, content="depth")
+    assert not some._config_is_valid
 
     mymeta = MetaData("dummy", some)
 
-    with pytest.raises(ValueError, match="A config exists, but 'masterdata' are not"):
-        mymeta._populate_meta_masterdata()
+    mymeta._populate_meta_masterdata()
+    assert not mymeta.meta_masterdata
 
 
 def test_metadata_populate_masterdata_is_present_ok(edataobj1, edataobj2):
@@ -169,16 +171,19 @@ def test_metadata_populate_masterdata_is_present_ok(edataobj1, edataobj2):
 # --------------------------------------------------------------------------------------
 
 
-def test_metadata_populate_access_miss_config_access(edataobj1):
+def test_metadata_populate_access_miss_config_access(globalconfig1):
     """Testing the access part, now with config missing access."""
 
-    cfg1_edited = deepcopy(edataobj1)
-    del cfg1_edited.config["access"]
+    cfg1_edited = deepcopy(globalconfig1)
+    del cfg1_edited["access"]
 
-    mymeta = MetaData("dummy", cfg1_edited)
+    edata = dio.ExportData(config=cfg1_edited, content="depth")
 
-    with pytest.raises(ConfigurationError):
-        mymeta._populate_meta_access()
+    assert not edata._config_is_valid
+
+    mymeta = MetaData("dummy", edata)
+    mymeta._populate_meta_access()
+    assert not mymeta.meta_access
 
 
 def test_metadata_populate_access_ok_config(edataobj2):
@@ -226,8 +231,11 @@ def test_metadata_populate_partial_access_ssdl(globalconfig1):
     edata = dio.ExportData(
         config=globalconfig1, access_ssdl={"rep_include": True}, content="depth"
     )
+
     mymeta = MetaData("dummy", edata)
     mymeta._populate_meta_access()
+    print(edata.config["access"])
+    print(mymeta.meta_access)
     assert mymeta.meta_access["ssdl"]["rep_include"] is True
     assert mymeta.meta_access["ssdl"]["access_level"] == "internal"  # default
     assert mymeta.meta_access["classification"] == "internal"  # default
@@ -255,9 +263,11 @@ def test_metadata_populate_wrong_config(globalconfig1):
     with pytest.warns(UserWarning):
         edata = dio.ExportData(config=_config, content="depth")
 
+    assert not edata._config_is_valid
+
     mymeta = MetaData("dummy", edata)
-    with pytest.raises(ConfigurationError, match="Illegal value for access"):
-        mymeta._populate_meta_access()
+    mymeta._populate_meta_access()
+    assert not mymeta.meta_access
 
 
 def test_metadata_populate_wrong_argument(globalconfig1):
@@ -269,9 +279,11 @@ def test_metadata_populate_wrong_argument(globalconfig1):
             access_ssdl={"access_level": "wrong"},
             content="depth",
         )
+    assert not edata._config_is_valid
+
     mymeta = MetaData("dummy", edata)
-    with pytest.raises(ConfigurationError, match="Illegal value for access"):
-        mymeta._populate_meta_access()
+    mymeta._populate_meta_access()
+    assert not mymeta.meta_access
 
 
 def test_metadata_access_correct_input(globalconfig1):
@@ -305,15 +317,13 @@ def test_metadata_access_deprecated_input(globalconfig1):
     """Test giving deprecated input."""
     # Input is "asset". Is deprecated, shall work with warning.
     # Output shall be "restricted".
-    with pytest.warns(
-        FutureWarning,
-        match="The value 'asset' for access.ssdl.access_level is deprec",
-    ):
+    with pytest.warns(FutureWarning):
         edata = dio.ExportData(
             config=globalconfig1,
             access_ssdl={"access_level": "asset"},
             content="depth",
         )
+    assert edata._config_is_valid
 
     mymeta = MetaData("dummy", edata)
     mymeta._populate_meta_access()
@@ -322,19 +332,20 @@ def test_metadata_access_deprecated_input(globalconfig1):
 
 
 def test_metadata_access_illegal_input(globalconfig1):
-    """Test giving illegal input."""
+    """Test giving illegal input, should provide empty access field"""
 
-    # Input is "secret". Not allowed, shall fail.
+    # Input is "secret"
     with pytest.warns(UserWarning):
         edata = dio.ExportData(
             config=globalconfig1,
             access_ssdl={"access_level": "secret"},
             content="depth",
         )
+    assert not edata._config_is_valid
 
     mymeta = MetaData("dummy", edata)
-    with pytest.raises(ConfigurationError, match="Illegal value for access"):
-        mymeta._populate_meta_access()
+    mymeta._populate_meta_access()
+    assert not mymeta.meta_access
 
     # Input is "open". Not allowed, shall fail.
     with pytest.warns(UserWarning):
@@ -343,9 +354,10 @@ def test_metadata_access_illegal_input(globalconfig1):
             access_ssdl={"access_level": "open"},
             content="depth",
         )
+    assert not edata._config_is_valid
     mymeta = MetaData("dummy", edata)
-    with pytest.raises(ConfigurationError, match="Illegal value for access"):
-        mymeta._populate_meta_access()
+    mymeta._populate_meta_access()
+    assert not mymeta.meta_access
 
 
 def test_metadata_access_no_input(globalconfig1):
