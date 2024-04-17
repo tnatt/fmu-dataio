@@ -6,8 +6,8 @@ as this is convinient to populate later, on demand)
 
 from __future__ import annotations
 
-from copy import deepcopy
 from dataclasses import dataclass, field
+from enum import Enum
 from pathlib import Path
 from typing import TYPE_CHECKING, Final, Optional
 from warnings import warn
@@ -27,6 +27,29 @@ if TYPE_CHECKING:
     from .objectdata._provider import ObjectDataProvider
 
 
+class FOLDER(str, Enum):
+    PREPROCESSED = "share/preprocessed"
+    OBSERVATIONS = "share/observations"
+    RESULTS = "share/results"
+
+
+def get_share_folders(dataio: ExportData, objdata: ObjectDataProvider) -> Path:
+    """Get the export share folders."""
+    if dataio.fmu_context == FmuContext.PREPROCESSED:
+        sharefolder = Path(FOLDER.PREPROCESSED.value)
+    elif dataio.is_observation:
+        sharefolder = Path(FOLDER.OBSERVATIONS.value)
+    else:
+        sharefolder = Path(FOLDER.RESULTS.value)
+
+    sharefolder = sharefolder / objdata.efolder
+    if dataio.subfolder:
+        sharefolder = sharefolder / dataio.subfolder
+
+    logger.info("Export share folders are %s", sharefolder)
+    return sharefolder
+
+
 @dataclass
 class FileDataProvider:
     """Class for providing metadata for the 'files' block in fmu-dataio.
@@ -42,21 +65,33 @@ class FileDataProvider:
     dataio: ExportData
     objdata: ObjectDataProvider
     rootpath: Path = field(default_factory=Path)
-    itername: str = ""
-    realname: str = ""
-    obj: Optional[types.Inferrable] = field(default=None)
+    runpath: Path | None = None
+    obj: Optional[types.Inferrable] = None
     compute_md5: bool = False
-
-    # storing results in these variables
-    forcefolder_is_absolute: bool = field(default=False, init=False)
 
     @property
     def name(self) -> str:
         return self.dataio.name or self.objdata.name
 
     def get_metadata(self) -> meta.File:
-        relpath = self._get_path()
-        relative_path, absolute_path = self._derive_filedata_generic(relpath)
+        if self.dataio.forcefolder and (
+            forcefolder := self._get_forcefolder_if_absolute()
+        ):
+            absolute_path = self._add_filename_to_path(forcefolder)
+            relative_path = self._try_to_resolve_forcefolder(absolute_path)
+
+        else:
+            share_folders = get_share_folders(self.dataio, self.objdata)
+            export_folder = (
+                self.runpath / share_folders
+                if self.runpath and self.dataio.fmu_context == FmuContext.REALIZATION
+                else self.rootpath / share_folders
+            )
+            absolute_path = self._add_filename_to_path(export_folder)
+            relative_path = absolute_path.relative_to(self.rootpath)
+            absolute_path = absolute_path.resolve()
+            self._check_ascii_validation(absolute_path)
+
         logger.info("Returning metadata pydantic model meta.File")
         return meta.File(
             absolute_path=absolute_path,
@@ -64,43 +99,16 @@ class FileDataProvider:
             checksum_md5=self._compute_md5() if self.compute_md5 else None,
         )
 
-    def _derive_filedata_generic(self, inrelpath: Path) -> tuple[Path, Path]:
-        """This works with both normal data and symlinks."""
+    def _add_filename_to_path(self, path: Path) -> Path:
         stem = self._get_filestem()
+        return (path / stem).with_suffix(path.suffix + self.objdata.extension)
 
-        path = Path(inrelpath) / stem.lower()
-        path = path.with_suffix(path.suffix + self.objdata.extension)
-
-        # resolve() will fix ".." e.g. change '/some/path/../other' to '/some/other'
-        abspath = path.resolve()
-
-        try:
-            str(abspath).encode("ascii")
-        except UnicodeEncodeError:
-            print(f"!! Path has non-ascii elements which is not supported: {abspath}")
-            raise
-
-        if self.forcefolder_is_absolute:
-            # may become meaningsless as forcefolder can be something else, but will try
-            try:
-                relpath = path.relative_to(self.rootpath)
-            except ValueError as verr:
-                if ("does not start with" in str(verr)) or (
-                    "not in the subpath of" in str(verr)
-                ):
-                    relpath = abspath
-                    logger.info(
-                        "Relative path equal to absolute path due to forcefolder "
-                        "with absolute path deviating for rootpath %s",
-                        self.rootpath,
-                    )
-                else:
-                    raise
-        else:
-            relpath = path.relative_to(self.rootpath)
-
-        logger.info("Derived filedata")
-        return relpath, abspath
+    @staticmethod
+    def _check_ascii_validation(path: Path) -> None:
+        if not str(path).isascii():
+            raise ValueError(
+                f"!! Path has non-ascii elements which is not supported: {path}"
+            )
 
     def _compute_md5(self) -> str:
         """Compute an MD5 sum using a temporary file."""
@@ -150,49 +158,32 @@ class FileDataProvider:
         # BUG(?): What about germen letter like "Ü"?
         stem = stem.replace("æ", "ae")
         stem = stem.replace("ø", "oe")
-        return stem.replace("å", "aa")
+        stem = stem.replace("å", "aa")
+        return stem.lower()
 
-    def _get_path(self) -> Path:
-        """Construct and get the folder path(s)."""
-        mode = self.dataio.fmu_context
-        outroot = deepcopy(self.rootpath)
-
-        logger.info("FMU context is %s", mode)
-        if mode == FmuContext.REALIZATION:
-            if self.realname:
-                outroot = outroot / self.realname  # TODO: if missing self.realname?
-
-            if self.itername:
-                outroot = outroot / self.itername
-
-        outroot = outroot / "share"
-
-        if mode == FmuContext.PREPROCESSED:
-            outroot = outroot / "preprocessed"
-            if self.dataio.forcefolder and self.dataio.forcefolder.startswith("/"):
-                raise ValueError(
-                    "Cannot use absolute path to 'forcefolder' with preprocessed data"
-                )
-
-        if mode != FmuContext.PREPROCESSED:
-            if self.dataio.is_observation:
-                outroot = outroot / "observations"
-            else:
-                outroot = outroot / "results"
-
-        dest = outroot / self.objdata.efolder  # e.g. "maps"
-
-        if self.dataio.forcefolder and self.dataio.forcefolder.startswith("/"):
+    def _get_forcefolder_if_absolute(self) -> Path | None:
+        if self.dataio.forcefolder.startswith("/"):
             if not self.dataio.allow_forcefolder_absolute:
                 raise ValueError(
-                    "The forcefolder includes an absolute path, i.e. "
+                    "Cannot use absolute path to 'forcefolder', i.e. "
                     "starting with '/'. This is strongly discouraged and is only "
                     "allowed if classvariable allow_forcefolder_absolute is set to True"
                 )
             warn("Using absolute paths in forcefolder is not recommended!")
+            return Path(self.dataio.forcefolder).absolute()
+        return None
 
-            # absolute if starts with "/", otherwise relative to outroot
-            dest = Path(self.dataio.forcefolder).absolute()
-            self.forcefolder_is_absolute = True
-
-        return dest if not self.dataio.subfolder else dest / self.dataio.subfolder
+    def _try_to_resolve_forcefolder(self, forcefolder: Path) -> Path:
+        try:
+            return forcefolder.relative_to(self.rootpath)
+        except ValueError as verr:
+            if ("does not start with" in str(verr)) or (
+                "not in the subpath of" in str(verr)
+            ):
+                logger.info(
+                    "Relative path equal to absolute path due to forcefolder "
+                    "with absolute path deviating for rootpath %s",
+                    self.rootpath,
+                )
+                return forcefolder.resolve()
+            raise

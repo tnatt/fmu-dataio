@@ -1,12 +1,13 @@
 """Test the _MetaData class from the _metadata.py module"""
 
 import os
+from copy import deepcopy
 from pathlib import Path
 
 import pytest
 from fmu.dataio import ExportData
 from fmu.dataio.datastructure.meta import meta
-from fmu.dataio.providers._filedata import FileDataProvider
+from fmu.dataio.providers._filedata import FileDataProvider, get_share_folders
 from fmu.dataio.providers.objectdata._base import derive_name
 from fmu.dataio.providers.objectdata._provider import objectdata_provider_factory
 from xtgeo.cube import Cube
@@ -157,6 +158,7 @@ def test_get_filestem_shall_fail(
     objdata.time0 = time0
     objdata.time1 = time1
 
+    edataobj1 = deepcopy(edataobj1)
     edataobj1.tagname = tagname
     edataobj1.parent = parentname
     edataobj1.name = ""
@@ -168,41 +170,44 @@ def test_get_filestem_shall_fail(
         assert message in str(msg)
 
 
-def test_get_paths_path_exists_already(regsurf, edataobj1, tmp_path):
-    """Testing the private _get_path method."""
+def test_get_share_folders(regsurf, edataobj1):
+    """Testing the get_share_folders method."""
 
-    os.chdir(tmp_path)
-    newpath = tmp_path / "share" / "results" / "efolder"
-    newpath.mkdir(parents=True, exist_ok=True)
-
+    edataobj1 = deepcopy(edataobj1)
     edataobj1.name = "some"
 
     objdata = objectdata_provider_factory(regsurf, edataobj1)
     objdata.name = "some"
     objdata.efolder = "efolder"
 
+    share_folders = get_share_folders(edataobj1, objdata)
+    assert isinstance(share_folders, Path)
+    assert share_folders == Path("share/results/efolder")
+
+    # check that the path present in the metadata matches the share folders
     fdata = FileDataProvider(edataobj1, objdata)
+    fmeta = fdata.get_metadata()
+    assert str(fmeta.absolute_path.parent).endswith("share/results/efolder")
 
-    path = fdata._get_path()
-    assert str(path) == "share/results/efolder"
 
-
-def test_get_paths_not_exists_so_create(regsurf, edataobj1, tmp_path):
+def test_get_share_folders_with_subfolder(regsurf, edataobj1):
     """Testing the private _get_path method, creating the path."""
-
-    os.chdir(tmp_path)
 
     objdata = objectdata_provider_factory(regsurf, edataobj1)
     objdata.name = "some"
     objdata.efolder = "efolder"
-    cfg = edataobj1
 
-    cfg._rootpath = Path(".")
+    edataobj1 = deepcopy(edataobj1)
+    edataobj1._rootpath = Path(".")
+    edataobj1.subfolder = "sub"
 
-    fdata = FileDataProvider(cfg, objdata)
+    share_folders = get_share_folders(edataobj1, objdata)
+    assert share_folders == Path("share/results/efolder/sub")
 
-    path = fdata._get_path()
-    assert str(path) == "share/results/efolder"
+    # check that the path present in the metadata matches the share folders
+    fdata = FileDataProvider(edataobj1, objdata)
+    fmeta = fdata.get_metadata()
+    assert str(fmeta.absolute_path.parent).endswith("share/results/efolder/sub")
 
 
 def test_filedata_provider(regsurf, edataobj1, tmp_path):
@@ -210,11 +215,13 @@ def test_filedata_provider(regsurf, edataobj1, tmp_path):
 
     os.chdir(tmp_path)
 
-    cfg = edataobj1
+    cfg = deepcopy(edataobj1)
     cfg._rootpath = Path(".")
     cfg.name = ""
+    cfg.parent = "parent"
+    cfg.tagname = "tag"
 
-    objdata = objectdata_provider_factory(regsurf, edataobj1)
+    objdata = objectdata_provider_factory(regsurf, cfg)
     objdata.name = "name"
     objdata.efolder = "efolder"
     objdata.extension = ".ext"
@@ -238,9 +245,9 @@ def test_filedata_has_nonascii_letters(regsurf, edataobj1, tmp_path):
 
     os.chdir(tmp_path)
 
-    cfg = edataobj1
-    cfg._rootpath = Path(".")
-    cfg.name = "mynõme"
+    edataobj1 = deepcopy(edataobj1)
+    edataobj1._rootpath = Path(".")
+    edataobj1.name = "mynõme"
 
     objdata = objectdata_provider_factory(regsurf, edataobj1)
     objdata.name = "anynõme"
@@ -249,8 +256,8 @@ def test_filedata_has_nonascii_letters(regsurf, edataobj1, tmp_path):
     objdata.time0 = "t1"
     objdata.time1 = "t2"
 
-    fdata = FileDataProvider(cfg, objdata)
-    with pytest.raises(UnicodeEncodeError, match=r"codec can't encode character"):
+    fdata = FileDataProvider(edataobj1, objdata)
+    with pytest.raises(ValueError, match="Path has non-ascii elements"):
         fdata.get_metadata()
 
 
