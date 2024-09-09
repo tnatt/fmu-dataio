@@ -8,11 +8,9 @@ from fmu.dataio._model import global_configuration
     name=strategies.text(min_size=1),
     stratigraphic=strategies.booleans(),
     alias=strategies.one_of(
-        strategies.none(),
         strategies.lists(strategies.one_of(strategies.text(), strategies.none())),
     ),
     stratigraphic_alias=strategies.one_of(
-        strategies.none(),
         strategies.lists(strategies.one_of(strategies.text(), strategies.none())),
     ),
 )
@@ -23,11 +21,8 @@ def test_drop_none(name, stratigraphic, alias, stratigraphic_alias):
         alias=alias,
         stratigraphic_alias=stratigraphic_alias,
     )
-    if cnf.alias is not None:
-        assert all(v is not None for v in cnf.alias)
-
-    if cnf.stratigraphic_alias is not None:
-        assert all(v is not None for v in cnf.stratigraphic_alias)
+    assert all(v is not None for v in cnf.alias)
+    assert all(v is not None for v in cnf.stratigraphic_alias)
 
 
 def test_access_classification_logic():
