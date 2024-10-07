@@ -2863,6 +2863,7 @@
               "type": "null"
             }
           ],
+          "default": null,
           "examples": [
             "kjhsdfvsdlfk23knerknvk23"
           ],
@@ -2901,8 +2902,7 @@
         }
       },
       "required": [
-        "relative_path",
-        "checksum_md5"
+        "relative_path"
       ],
       "title": "File",
       "type": "object"
