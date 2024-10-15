@@ -2186,8 +2186,19 @@
       "description": "A block describing a field outline. Shall be present if ``data.content``\n== \"field_outline\"",
       "properties": {
         "contact": {
-          "title": "Contact",
-          "type": "string"
+          "anyOf": [
+            {
+              "$ref": "#/$defs/FieldOutlineContact"
+            },
+            {
+              "type": "string"
+            }
+          ],
+          "examples": [
+            "fwl",
+            "fgl"
+          ],
+          "title": "Contact"
         }
       },
       "required": [
@@ -2195,6 +2206,14 @@
       ],
       "title": "FieldOutline",
       "type": "object"
+    },
+    "FieldOutlineContact": {
+      "enum": [
+        "fwl",
+        "fgl"
+      ],
+      "title": "FieldOutlineContact",
+      "type": "string"
     },
     "FieldOutlineData": {
       "description": "The ``data`` block contains information about the data contained in this object.\nThis class contains metadata for field outlines.",

@@ -110,8 +110,22 @@ class FieldOutline(BaseModel):
     == "field_outline"
     """
 
-    contact: str
+    contact: Union[enums.FieldOutlineContact, str] = Field(examples=["fwl", "fgl"])
     """A known type of fluid contact used to define the field outline."""
+
+    @field_validator("contact", mode="before")
+    def contact_validation(cls, v: str) -> enums.FieldOutlineContact | str:
+        if isinstance(v, str):
+            try:
+                return enums.FieldOutlineContact(v.lower())
+            except ValueError:
+                warnings.warn(
+                    f"You've defined the field_outline contact as '{v}'. "
+                    "In the future it will only be allowed to use one of "
+                    f"{[m.value for m in enums.FieldOutlineContact]}",
+                    FutureWarning,
+                )
+        return v
 
 
 class FieldRegion(BaseModel):

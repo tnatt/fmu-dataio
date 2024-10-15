@@ -45,6 +45,17 @@ def test_content_field_outline(polygons, globalconfig2):
     ).generate_metadata(polygons)
 
     assert meta["data"]["content"] == "field_outline"
+    assert meta["data"]["field_outline"]["contact"] == "fwl"
+
+    with pytest.warns(FutureWarning, match="only be allowed"):
+        meta = ExportData(
+            config=globalconfig2,
+            name="MyName",
+            content={"field_outline": {"contact": "mycontact"}},
+        ).generate_metadata(polygons)
+
+    assert meta["data"]["content"] == "field_outline"
+    assert meta["data"]["field_outline"]["contact"] == "mycontact"
 
 
 def test_content_field_region(polygons, globalconfig2):

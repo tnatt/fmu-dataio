@@ -103,6 +103,11 @@ class DomainReference(str, Enum):
     rkb = "rkb"
 
 
+class FieldOutlineContact(str, Enum):
+    fwl = "fwl"
+    fgl = "fgl"
+
+
 class TrackLogEventType(str, Enum):
     """The type of event being logged"""
 
