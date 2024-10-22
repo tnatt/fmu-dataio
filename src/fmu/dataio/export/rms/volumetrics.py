@@ -4,7 +4,6 @@ import warnings
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Final
-from warnings import warn
 
 import pandas as pd
 from packaging.version import parse as versionparse
@@ -14,6 +13,7 @@ from fmu.config.utilities import yaml_load
 from fmu.dataio._logging import null_logger
 
 from .._decorators import experimental
+from .._export_result import ExportResult, ExportResultItem
 from ._conditional_rms_imports import import_rms_package
 
 _modules = import_rms_package()
@@ -56,16 +56,11 @@ class _ExportVolumetricsRMS:
     volume_job_name: str
 
     # optional and defaulted
-    global_config: str | Path | dict = "../../fmuconfig/output/global_variables.yml"
-    forcefolder: str = ""  # allowed until deprecated
-    subfolder: str = ""
-    name: str = ""
-    tagname: str = "vol"
-    classification: str = "restricted"
-    workflow: str = "rms volumetric run"
+    config_path: str | Path = "../../fmuconfig/output/global_variables.yml"
+    classification: str | None = None
 
     # internal storage instance variables
-    _global_config: dict = field(default_factory=dict, init=False)
+    _config: dict = field(default_factory=dict, init=False)
     _volume_job: dict = field(default_factory=dict, init=False)
     _volume_table_name: str = field(default="", init=False)
     _dataframe: pd.DataFrame = field(default_factory=pd.DataFrame, init=False)
@@ -74,12 +69,11 @@ class _ExportVolumetricsRMS:
     def __post_init__(self) -> None:
         _logger.debug("Process data, estiblish state prior to export.")
         self._check_rmsapi_version()
-        self._set_global_config()
+        self._set_config()
         self._rms_volume_job_settings()
         self._read_volume_table_name_from_rms()
         self._voltable_as_dataframe()
         self._set_units()
-        self._warn_if_forcefolder()
         _logger.debug("Process data... DONE")
 
     @staticmethod
@@ -92,22 +86,20 @@ class _ExportVolumetricsRMS:
             )
         _logger.debug("Check API version... DONE")
 
-    def _set_global_config(self) -> None:
+    def _set_config(self) -> None:
         """Set the global config data by reading the file."""
         _logger.debug("Set global config...")
 
-        if isinstance(self.global_config, dict):
-            self._global_config = self.global_config
-            _logger.debug("Set global config (from input dictionary)... DONE!")
-            return
+        if isinstance(self.config_path, dict):
+            raise ValueError("The config_path argument needs to be a string or a path")
 
-        global_config_path = Path(self.global_config)
+        global_config_path = Path(self.config_path)
 
         if not global_config_path.is_file():
             raise FileNotFoundError(
-                f"Cannot find file for global config: {self.global_config}"
+                f"Cannot find file for global config: {self.config_path}"
             )
-        self._global_config = yaml_load(global_config_path)
+        self._config = yaml_load(global_config_path)
         _logger.debug("Read config from yaml... DONE")
 
     def _rms_volume_job_settings(self) -> None:
@@ -159,36 +151,34 @@ class _ExportVolumetricsRMS:
         _logger.debug("Units are %s", units)
         self._units = str(units)
 
-    def _warn_if_forcefolder(self) -> None:
-        if self.forcefolder:
-            warn(
-                "A 'forcefolder' is set. This is strongly discouraged and will be "
-                "removed in coming versions",
-                FutureWarning,
-            )
-
-    def _export_volume_table(self) -> dict[str, str]:
+    def _export_volume_table(self) -> ExportResult:
         """Do the actual volume table export using dataio setup."""
 
         edata = dio.ExportData(
-            config=self._global_config,
+            config=self._config,
             content="volumes",
             unit="m3" if self._units == "metric" else "ft3",
             vertical_domain="depth",
             domain_reference="msl",
-            workflow=self.workflow,
-            forcefolder=self.forcefolder,
+            subfolder="volumes",
             classification=self.classification,
-            tagname=self.tagname,
-            name=self.name if self.name else f"{self.grid_name}_volumes",
+            name=self.grid_name.lower(),
             rep_include=False,
         )
-
+        meta = edata.generate_metadata(self._dataframe)
         out = edata.export(self._dataframe)
-        _logger.debug("Volume result to: %s", out)
-        return {"volume_table": out}
 
-    def export(self) -> dict[str, str]:
+        _logger.debug("Volume result to: %s", out)
+        return ExportResult(
+            items=[
+                ExportResultItem(
+                    absolute_path=Path(meta["file"]["absolute_path"]),
+                    relative_path=Path(meta["file"]["relative_path"]),
+                )
+            ],
+        )
+
+    def export(self) -> ExportResult:
         """Export the volume table."""
         return self._export_volume_table()
 
@@ -198,39 +188,20 @@ def export_volumetrics(
     project: Any,
     grid_name: str,
     volume_job_name: str,
-    global_config: str | Path | dict = "../../fmuconfig/output/global_variables.yml",
-    forcefolder: str = "",  # unsure if we shall allow this?
-    subfolder: str = "",
-    name: str = "",
-    tagname: str = "",
-    classification: str = "restricted",
-    workflow: str = "rms volumetric run",
-) -> dict[str, str]:
+    config_path: str | Path = "../../fmuconfig/output/global_variables.yml",
+    classification: str | None = None,
+) -> ExportResult:
     """Simplified interface when exporting volume tables (and assosiated data) from RMS.
 
-    As the export_volumetrics may have multiple output (storing both tables, maps and
-    3D grids), the output from this function is always a dictionary. The table is
-    mandatory output, while maps and 3D grid data are optional (not yet implemented).
-
-    Args:
+        Args:
         project: The 'magic' project variable in RMS.
         grid_name: Name of 3D grid model in RMS.
         volume_job_name: Name of the volume job.
-        global_config: Optional. The global config can either point to the
-            global_variables file, or it can be a dictionary. As default, it assumes
-            a the current standard in FMU:
+        config_path: Optional. Path to the global_variables file. As default, it assumes
+            the current standard in FMU:
             ``'../../fmuconfig/output/global_variables.yml'``
-        forcefolder: Optional. As default, volume tables will be exported to the agreed
-            file structure, and the folder name will be 'tables'. This can be
-            overriden here, but there will be warnings. For optional assosiated
-            volume maps and grids, the default folder names cannot be changed.
-        subfolder: Name of subfolder for local storage, below the standard folder.
-        name: Optional. Name of export item. Is defaulted to name of grid + '_volumes'.
-        tagname: Optional. Defaulted to 'vol' for this function. Tagnames are part of
-            file names, and should not be applied as metadata.
-        classification: Optional. Use 'internal' or 'restricted' (default).
-        workflow: Optional. Information about the work flow; defaulted to
-            'rms volumetrics'.
+        classification: Optional. Use 'internal' or 'restricted'. If not specified the
+            default classification found in the global config will be used.
 
     Note:
         This function is experimental and may change in future versions.
@@ -240,19 +211,14 @@ def export_volumetrics(
         project,
         grid_name,
         volume_job_name,
-        global_config=global_config,
-        forcefolder=forcefolder,
-        subfolder=subfolder,
-        name=name,
-        tagname=tagname,
+        config_path=config_path,
         classification=classification,
-        workflow=workflow,
     ).export()
 
 
 # keep the old name for now but not log (will be removed soon as we expect close to
 # zero usage so far)
-def export_rms_volumetrics(*args, **kwargs) -> dict[str, str]:  # type: ignore
+def export_rms_volumetrics(*args, **kwargs) -> ExportResult:  # type: ignore
     """Deprecated function. Use export_volumetrics instead."""
     warnings.warn(
         "export_rms_volumetrics is deprecated and will be removed in a future release. "

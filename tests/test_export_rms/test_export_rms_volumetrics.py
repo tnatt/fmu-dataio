@@ -49,7 +49,8 @@ def test_rms_volumetrics_export_class(
     monkeypatch.setattr(instance, "_dataframe", voltable_as_dataframe)
 
     out = instance._export_volume_table()
-    metadata = dataio.read_metadata(out["volume_table"])
+
+    metadata = dataio.read_metadata(out.items[0].absolute_path)
 
     assert "volumes" in metadata["data"]["content"]
 
@@ -65,7 +66,12 @@ def test_rms_volumetrics_export_function(
     os.chdir(rmssetup_with_fmuconfig)
 
     result = export_volumetrics(mock_project_variable, "Geogrid", "geogrid_volume")
-    vol_table_file = result["volume_table"]
+    vol_table_file = result.items[0].absolute_path
+
+    relative_path = "share/results/tables/volumes/geogrid.csv"
+
+    assert vol_table_file == (rmssetup_with_fmuconfig.parent.parent / relative_path)
+    assert result.items[0].relative_path == Path(relative_path)
 
     assert Path(vol_table_file).is_file()
     metadata = dataio.read_metadata(vol_table_file)
