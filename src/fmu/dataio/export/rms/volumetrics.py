@@ -1,26 +1,21 @@
 from __future__ import annotations
 
 import warnings
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Final
 
 import pandas as pd
-from packaging.version import parse as versionparse
 
 import fmu.dataio as dio
-from fmu.config.utilities import yaml_load
 from fmu.dataio._logging import null_logger
 
 from .._decorators import experimental
 from .._export_result import ExportResult, ExportResultItem
 from ._conditional_rms_imports import import_rms_package
+from ._utils import _check_rmsapi_version, _get_rms_project_units, _load_config
 
-_modules = import_rms_package()
-if _modules:
-    rmsapi = _modules["rmsapi"]
-    jobs = _modules["jobs"]
-
+rmsapi, rmsjobs = import_rms_package()
 
 _logger: Final = null_logger(__name__)
 
@@ -54,102 +49,58 @@ class _ExportVolumetricsRMS:
     project: Any
     grid_name: str
     volume_job_name: str
-
-    # optional and defaulted
     config_path: str | Path = "../../fmuconfig/output/global_variables.yml"
     classification: str | None = None
 
-    # internal storage instance variables
-    _config: dict = field(default_factory=dict, init=False)
-    _volume_job: dict = field(default_factory=dict, init=False)
-    _volume_table_name: str = field(default="", init=False)
-    _dataframe: pd.DataFrame = field(default_factory=pd.DataFrame, init=False)
-    _units: str = field(default="metric", init=False)
-
     def __post_init__(self) -> None:
         _logger.debug("Process data, estiblish state prior to export.")
-        self._check_rmsapi_version()
-        self._set_config()
-        self._rms_volume_job_settings()
-        self._read_volume_table_name_from_rms()
-        self._voltable_as_dataframe()
-        self._set_units()
+        self._config = _load_config(Path(self.config_path))
+        self._volume_job = self._rms_volume_job_settings()
+        self._volume_table_name = self._read_volume_table_name_from_job()
+        self._dataframe = self._voltable_as_dataframe()
         _logger.debug("Process data... DONE")
 
-    @staticmethod
-    def _check_rmsapi_version() -> None:
-        """Check if we are working in a RMS API, and also check RMS versions?"""
-        _logger.debug("Check API version...")
-        if versionparse(rmsapi.__version__) < versionparse("1.7"):
-            raise RuntimeError(
-                "You need at least API version 1.7 (RMS 13.1) to use this function."
-            )
-        _logger.debug("Check API version... DONE")
-
-    def _set_config(self) -> None:
-        """Set the global config data by reading the file."""
-        _logger.debug("Set global config...")
-
-        if isinstance(self.config_path, dict):
-            raise ValueError("The config_path argument needs to be a string or a path")
-
-        global_config_path = Path(self.config_path)
-
-        if not global_config_path.is_file():
-            raise FileNotFoundError(
-                f"Cannot find file for global config: {self.config_path}"
-            )
-        self._config = yaml_load(global_config_path)
-        _logger.debug("Read config from yaml... DONE")
-
-    def _rms_volume_job_settings(self) -> None:
+    def _rms_volume_job_settings(self) -> dict:
         """Get information out from the RMS job API."""
         _logger.debug("RMS VOLJOB settings...")
-        self._volume_job = jobs.Job.get_job(
+        return rmsjobs.Job.get_job(
             owner=["Grid models", self.grid_name, "Grid"],
             type="Volumetrics",
             name=self.volume_job_name,
         ).get_arguments()
-        _logger.debug("RMS VOLJOB settings... DONE")
 
-    def _read_volume_table_name_from_rms(self) -> None:
+    def _read_volume_table_name_from_job(self) -> str:
         """Read the volume table name from RMS."""
         _logger.debug("Read volume table name from RMS...")
         voltable = self._volume_job.get("Report")
         if isinstance(voltable, list):
             voltable = voltable[0]
-        self._volume_table_name = voltable.get("ReportTableName")
 
-        if not self._volume_table_name:
+        volume_table_name = voltable.get("ReportTableName")
+        if not volume_table_name:
             raise RuntimeError(
                 "You need to configure output to Report file: Report table "
                 "in the volumetric job. Provide a table name and rerun the job."
             )
 
-        _logger.debug("The volume table name is %s", self._volume_table_name)
-        _logger.debug("Read volume table name from RMS... DONE")
+        _logger.debug("The volume table name is %s", volume_table_name)
+        return volume_table_name
 
-    def _voltable_as_dataframe(self) -> None:
+    def _voltable_as_dataframe(self) -> pd.DataFrame:
         """Convert table to pandas dataframe"""
         _logger.debug("Read values and convert to pandas dataframe...")
+
         dict_values = (
             self.project.volumetric_tables[self._volume_table_name]
             .get_data_table()
             .to_dict()
         )
         _logger.debug("Dict values are: %s", dict_values)
-        self._dataframe = pd.DataFrame.from_dict(dict_values)
-        self._dataframe.rename(columns=_RENAME_COLUMNS_FROM_RMS, inplace=True)
-        self._dataframe.drop("REAL", axis=1, inplace=True, errors="ignore")
-
-        _logger.debug("Read values and convert to pandas dataframe... DONE")
-
-    def _set_units(self) -> None:
-        """See if the RMS project is defined in metric or feet."""
-
-        units = self.project.project_units
-        _logger.debug("Units are %s", units)
-        self._units = str(units)
+        return (
+            pd.DataFrame.from_dict(dict_values)
+            .rename(columns=_RENAME_COLUMNS_FROM_RMS)
+            .drop("REAL", axis=1, errors="ignore")
+        )
 
     def _export_volume_table(self) -> ExportResult:
         """Do the actual volume table export using dataio setup."""
@@ -157,7 +108,7 @@ class _ExportVolumetricsRMS:
         edata = dio.ExportData(
             config=self._config,
             content="volumes",
-            unit="m3" if self._units == "metric" else "ft3",
+            unit="m3" if _get_rms_project_units(self.project) == "metric" else "ft3",
             vertical_domain="depth",
             domain_reference="msl",
             subfolder="volumes",
@@ -165,10 +116,10 @@ class _ExportVolumetricsRMS:
             name=self.grid_name.lower(),
             rep_include=False,
         )
-        meta = edata.generate_metadata(self._dataframe)
         out = edata.export(self._dataframe)
-
         _logger.debug("Volume result to: %s", out)
+
+        meta = edata.generate_metadata(self._dataframe)
         return ExportResult(
             items=[
                 ExportResultItem(
@@ -193,7 +144,7 @@ def export_volumetrics(
 ) -> ExportResult:
     """Simplified interface when exporting volume tables (and assosiated data) from RMS.
 
-        Args:
+    Args:
         project: The 'magic' project variable in RMS.
         grid_name: Name of 3D grid model in RMS.
         volume_job_name: Name of the volume job.
@@ -206,6 +157,7 @@ def export_volumetrics(
     Note:
         This function is experimental and may change in future versions.
     """
+    _check_rmsapi_version(minimum_version="1.7")
 
     return _ExportVolumetricsRMS(
         project,
