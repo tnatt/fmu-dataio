@@ -169,6 +169,8 @@ def test_create_case_metadata_export_with_norsk_alphabet(
     monkeypatch.chdir(fmurun)
     caseroot = fmurun.parent.parent
 
+    globalconfig2["masterdata"]["smda"]["field"][0]["identifier"] = "æøå"
+
     icase = CreateCaseMetadata(
         config=globalconfig2,
         rootfolder=caseroot,
@@ -176,7 +178,6 @@ def test_create_case_metadata_export_with_norsk_alphabet(
         caseuser="MyUser",
         description="Søme description",
     )
-    globalconfig2["masterdata"]["smda"]["field"][0]["identifier"] = "æøå"
 
     fmu_case_yml = Path(icase.export())
     assert fmu_case_yml.exists()

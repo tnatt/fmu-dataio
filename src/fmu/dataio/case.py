@@ -15,7 +15,7 @@ from . import _utils
 from ._logging import null_logger
 from ._metadata import CaseMetadataExport
 from ._model import global_configuration
-from ._model.fields import Access, Case, Masterdata, Model, User
+from ._model.fields import Case, User
 
 logger: Final = null_logger(__name__)
 
@@ -63,12 +63,6 @@ class CreateCaseMetadata:  # pylint: disable=too-few-public-methods
         self._casepath = Path(self.rootfolder)
         self._metafile = self._casepath / "share/metadata/fmu_case.yml"
 
-        # For this class, the global config must be valid; hence error if not
-        try:
-            global_configuration.GlobalConfiguration.model_validate(self.config)
-        except ValidationError as e:
-            global_configuration.validation_error_warning(e)
-            raise
         logger.info("Ran __post_init__ for CreateCaseMetadata")
 
     def _establish_metadata_files(self) -> bool:
@@ -106,6 +100,16 @@ class CreateCaseMetadata:  # pylint: disable=too-few-public-methods
             A dictionary with case metadata or an empty dictionary if the metadata
             already exists.
         """
+
+        # For this class, the global config must be valid; hence error if not
+        try:
+            config = global_configuration.GlobalConfiguration.model_validate(
+                self.config
+            )
+        except ValidationError as e:
+            global_configuration.validation_error_warning(e)
+            raise
+
         if not self._establish_metadata_files():
             exists_warning = (
                 "The case metadata file already exists and will not be overwritten. "
@@ -116,13 +120,15 @@ class CreateCaseMetadata:  # pylint: disable=too-few-public-methods
             warnings.warn(exists_warning, UserWarning)
             return {}
 
+        # TODO: Change to direct use of config.access when version 3.0 is released
         self._metadata = CaseMetadataExport(
-            masterdata=Masterdata.model_validate(self.config["masterdata"]),
-            access=Access.model_validate(self.config["access"]),
+            masterdata=config.masterdata,
+            access=fields.Access(
+                asset=config.access.asset,
+                classification=config.access.classification,
+            ),
             fmu=fields.FMUBase(
-                model=Model.model_validate(
-                    self.config["model"],
-                ),
+                model=config.model,
                 case=Case(
                     name=self.casename,
                     uuid=self._case_uuid(),
