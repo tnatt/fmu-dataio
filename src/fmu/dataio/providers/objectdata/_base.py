@@ -1,15 +1,14 @@
 from __future__ import annotations
 
 from abc import abstractmethod
-from copy import deepcopy
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import TYPE_CHECKING, Any, Final
 
 from fmu.dataio._definitions import ValidFormats
 from fmu.dataio._logging import null_logger
+from fmu.dataio._models.fmu_results import enums
 from fmu.dataio._models.fmu_results.data import AnyData, Time, Timestamp
-from fmu.dataio._models.fmu_results.enums import Content
 from fmu.dataio._models.fmu_results.global_configuration import (
     GlobalConfiguration,
     StratigraphyElement,
@@ -18,7 +17,8 @@ from fmu.dataio._models.fmu_results.product import Product
 from fmu.dataio._utils import generate_description
 from fmu.dataio.exceptions import ConfigurationError
 from fmu.dataio.providers._base import Provider
-from fmu.dataio.providers.objectdata._export_models import AllowedContent, UnsetData
+from fmu.dataio.providers._content_details import ContentDetailsProvider
+from fmu.dataio.providers.objectdata._export_models import UnsetData
 
 if TYPE_CHECKING:
     from fmu.dataio._model.data import (
@@ -65,7 +65,9 @@ class ObjectDataProvider(Provider):
                 raise ValueError("Can't use absolute path as 'forcefolder'")
             logger.info(f"Using forcefolder {self.dataio.forcefolder}")
 
-        content_model = self._get_validated_content(self.dataio.content)
+        content = self.dataio._get_content_enum() or "unset"
+        content_details_provider = self._get_content_details_provider()
+
         strat_element = self._get_stratigraphy_element()
         self.name = strat_element.name
 
@@ -77,11 +79,10 @@ class ObjectDataProvider(Provider):
         metadata["top"] = strat_element.top
         metadata["base"] = strat_element.base
 
-        metadata["content"] = (usecontent := content_model.content)
-        if content_model.content_incl_specific:
-            metadata[usecontent] = getattr(
-                content_model.content_incl_specific, usecontent, None
-            )
+        metadata["content"] = content
+        if content_details_provider and isinstance(self.dataio.content, dict):
+            metadata[content] = content_details_provider.get_metadata()
+
         metadata["product"] = self.product
         metadata["tagname"] = self.dataio.tagname
         metadata["format"] = self.fmt
@@ -153,31 +154,6 @@ class ObjectDataProvider(Provider):
     def get_metadata(self) -> AnyData | UnsetData:
         assert self._metadata is not None
         return self._metadata
-
-    def _get_validated_content(self, content: str | dict | None) -> AllowedContent:
-        """Check content and return a validated model."""
-        logger.info("Evaluate content")
-        logger.debug("content is %s of type %s", str(content), type(content))
-
-        if not content:
-            return AllowedContent(content="unset")
-
-        if isinstance(content, str):
-            return AllowedContent(content=Content(content))
-
-        if len(content) > 1:
-            raise ValueError(
-                "Found more than one content item in the 'content' dictionary. Ensure "
-                "input is formatted as content={'mycontent': {extra_key: extra_value}}."
-            )
-        content = deepcopy(content)
-        usecontent, content_specific = next(iter(content.items()))
-        logger.debug("usecontent is %s", usecontent)
-        logger.debug("content_specific is %s", content_specific)
-
-        return AllowedContent.model_validate(
-            {"content": Content(usecontent), "content_incl_specific": content}
-        )
 
     def _get_stratigraphy_element(self) -> StratigraphyElement:
         """Derive the name and stratigraphy for the object; may have several sources.
@@ -258,6 +234,22 @@ class ObjectDataProvider(Provider):
         self.time0, self.time1 = start.value, stop.value if stop else None
 
         return Time(t0=start, t1=stop)
+
+    def _get_content_details_provider(self) -> ContentDetailsProvider | None:
+        """Get a content_details provider. Return None if no content is input"""
+
+        if isinstance(self.dataio.content, dict):
+            content = enums.Content._from_content(self.dataio.content)
+            return ContentDetailsProvider(
+                content=content,
+                content_details=self.dataio.content.get(content.value),
+            )
+        if isinstance(self.dataio.content, str):
+            return ContentDetailsProvider(
+                content=enums.Content(self.dataio.content),
+                content_details=None,
+            )
+        return None
 
     @staticmethod
     def _validate_get_ext(fmt: str, validator: ValidFormats) -> str:

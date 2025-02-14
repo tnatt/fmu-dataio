@@ -83,7 +83,7 @@ def test_content_fluid_contact_case_insensitive(regsurf, globalconfig2):
 
 def test_content_fluid_contact_raises_on_invalid_contact(regsurf, globalconfig2):
     """Test export of the fluid_contact content."""
-    with pytest.raises(ValidationError, match="fluid_contact"):
+    with pytest.raises(ValidationError, match="FluidContact"):
         ExportData(
             config=globalconfig2,
             name="MyName",

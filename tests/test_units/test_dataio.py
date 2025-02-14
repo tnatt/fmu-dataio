@@ -458,7 +458,7 @@ def test_content_invalid_dict(globalconfig1, regsurf):
     eobj = ExportData(
         config=globalconfig1, content={"seismic": "some_key", "extra": "some_value"}
     )
-    with pytest.raises(ValueError, match="Found more than one content item"):
+    with pytest.raises(ValueError, match="incorrectly formatted"):
         eobj.generate_metadata(regsurf)
 
 
@@ -471,7 +471,7 @@ def test_content_valid_string(regsurf, globalconfig2):
 
 def test_seismic_content_require_seismic_data(globalconfig2, regsurf):
     eobj = ExportData(config=globalconfig2, content="seismic")
-    with pytest.raises(pydantic.ValidationError, match="requires additional input"):
+    with pytest.raises(ValueError, match="requires additional input"):
         eobj.generate_metadata(regsurf)
 
 
