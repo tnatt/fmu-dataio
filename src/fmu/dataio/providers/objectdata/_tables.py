@@ -10,7 +10,7 @@ from fmu.dataio._definitions import (
     ValidFormats,
 )
 from fmu.dataio._logging import null_logger
-from fmu.dataio._models.fmu_results.enums import Content, FMUClass, Layout
+from fmu.dataio._models.fmu_results.enums import Content, FileFormat, FMUClass, Layout
 from fmu.dataio._models.fmu_results.specification import TableSpecification
 
 from ._base import (
@@ -199,7 +199,7 @@ class ArrowTableDataProvider(ObjectDataProvider):
 
     @property
     def fmt(self) -> str:
-        return self.dataio.arrow_fformat
+        return FileFormat(self.dataio.arrow_fformat)
 
     @property
     def layout(self) -> Layout:
