@@ -6,6 +6,8 @@ from textwrap import dedent
 from typing import TYPE_CHECKING, Final
 
 import numpy as np
+import pyarrow as pa
+import pyarrow.parquet as pq
 
 from fmu.dataio._definitions import ExportFolder, ValidFormats
 from fmu.dataio._logging import null_logger
@@ -189,22 +191,31 @@ class PolygonsDataProvider(ObjectDataProvider):
     def export_to_file(self, file: Path | BytesIO) -> None:
         """Export the object to file or memory buffer"""
 
-        if self.fmt == FileFormat.csv_xtgeo:
-            self.obj_dataframe.to_csv(file, index=False)
-
-        elif self.fmt == FileFormat.csv:
-            # rename from xtgeo names to standard
-            self.obj_dataframe.rename(
-                columns={
-                    self.obj.xname: "X",
-                    self.obj.yname: "Y",
-                    self.obj.zname: "Z",
-                    self.obj.pname: "ID",
-                }
-            ).to_csv(file, index=False)
-
+        if self.fmt == FileFormat.parquet:
+            table = pa.Table.from_pandas(self.obj_dataframe)
+            pq.write_table(table, where=pa.output_stream(file))
         else:
-            self.obj.to_file(file)
+            warnings.warn(
+                "In the future both polygons will be exported as tables on "
+                "parquet format, using xtgeo naming standards as column names: "
+                "X_UTME, Y_UTMN, Z_TVDSS and POLY_ID.",
+                FutureWarning,
+            )
+            if self.fmt == FileFormat.irap_ascii:
+                self.obj.to_file(file)
+
+            if self.fmt == FileFormat.csv:
+                self.obj_dataframe.rename(
+                    columns={
+                        self.obj.xname: "X",
+                        self.obj.yname: "Y",
+                        self.obj.zname: "Z",
+                        self.obj.pname: "ID",
+                    }
+                ).to_csv(file, index=False)
+
+            if self.fmt == FileFormat.csv_xtgeo:
+                self.obj_dataframe.to_csv(file, index=False)
 
 
 @dataclass
@@ -270,21 +281,30 @@ class PointsDataProvider(ObjectDataProvider):
     def export_to_file(self, file: Path | BytesIO) -> None:
         """Export the object to file or memory buffer"""
 
-        if self.fmt == FileFormat.csv_xtgeo:
-            self.obj_dataframe.to_csv(file, index=False)
-
-        elif self.fmt == FileFormat.csv:
-            # rename from xtgeo names to standard
-            self.obj_dataframe.rename(
-                columns={
-                    self.obj.xname: "X",
-                    self.obj.yname: "Y",
-                    self.obj.zname: "Z",
-                }
-            ).to_csv(file, index=False)
-
+        if self.fmt == FileFormat.parquet:
+            table = pa.Table.from_pandas(self.obj_dataframe)
+            pq.write_table(table, where=pa.output_stream(file))
         else:
-            self.obj.to_file(file)
+            warnings.warn(
+                "In the future both points will be exported as tables on "
+                "parquet format, using xtgeo naming standards as column names: "
+                "X_UTME, Y_UTMN, Z_TVDSS.",
+                FutureWarning,
+            )
+            if self.fmt == FileFormat.irap_ascii:
+                self.obj.to_file(file)
+
+            if self.fmt == FileFormat.csv:
+                self.obj_dataframe.rename(
+                    columns={
+                        self.obj.xname: "X",
+                        self.obj.yname: "Y",
+                        self.obj.zname: "Z",
+                    }
+                ).to_csv(file, index=False)
+
+            if self.fmt == FileFormat.csv_xtgeo:
+                self.obj_dataframe.to_csv(file, index=False)
 
 
 @dataclass
