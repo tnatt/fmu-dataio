@@ -7,12 +7,12 @@ import pytest
 import yaml
 
 from fmu import dataio
-from fmu.dataio._definitions import ValidFormats
 from fmu.dataio._models.fmu_results.specification import FaultRoomSurfaceSpecification
 from fmu.dataio.exceptions import ConfigurationError
 from fmu.dataio.providers.objectdata._faultroom import FaultRoomSurfaceProvider
 from fmu.dataio.providers.objectdata._provider import (
     objectdata_provider_factory,
+    FileFormat,
 )
 from fmu.dataio.providers.objectdata._xtgeo import RegularSurfaceDataProvider
 
@@ -69,20 +69,20 @@ def test_objectdata_faultroom_fault_juxtaposition_get_stratigraphy_differ(
 def test_objectdata_regularsurface_validate_extension(regsurf, edataobj1):
     """Test a valid extension for RegularSurface object."""
 
-    ext = objectdata_provider_factory(regsurf, edataobj1)._validate_get_ext(
-        "irap_binary", ValidFormats.surface
-    )
+    objdata = objectdata_provider_factory(regsurf, edataobj1)
 
-    assert ext == ".gri"
+    assert objdata.extension == ".gri"
 
 
-def test_objectdata_regularsurface_validate_extension_shall_fail(regsurf, edataobj1):
-    """Test an invalid extension for RegularSurface object."""
+def test_objectdata_table_validate_extension_shall_fail(dataframe, edataobj1):
+    """Test an invalid extension for a table object."""
+
+    edataobj1.table_fformat = "roff"  # set to invalid format
 
     with pytest.raises(ConfigurationError):
-        objectdata_provider_factory(regsurf, edataobj1)._validate_get_ext(
-            "some_invalid", ValidFormats.surface
-        )
+        ext = objectdata_provider_factory(dataframe, edataobj1).extension
+
+    edataobj1.table_fformat = None  # reset to default
 
 
 def test_objectdata_regularsurface_spec_bbox(regsurf, edataobj1):
@@ -179,3 +179,46 @@ def test_objectdata_compute_md5(gridproperty, edataobj1):
 
     metadata = edataobj1.generate_metadata(gridproperty)
     assert metadata["file"]["checksum_md5"] == myobj.compute_md5()
+
+
+def test_objectdata_format_surface(regsurf, edataobj1):
+    """Test that surface_fformat does not alter the format for a surface."""
+
+    edataobj1.surface_fformat = "csv"
+    assert objectdata_provider_factory(regsurf, edataobj1).fmt == FileFormat.irap_binary
+    edataobj1.surface_fformat = None  # reset to default
+
+
+def test_objectdata_format_arrow(arrowtable, edataobj1):
+    """Test that arrow_fformat does not alter the format for a arrow table."""
+
+    edataobj1.arrow_fformat = "csv"
+    assert objectdata_provider_factory(arrowtable, edataobj1).fmt == FileFormat.parquet
+    edataobj1.arrow_fformat = None  # reset to default
+
+
+def test_objectdata_format_cube(cube, edataobj1):
+    """Test that cube_fformat does not alter the format for a cube."""
+
+    edataobj1.cube_fformat = "grdcl"
+    assert objectdata_provider_factory(cube, edataobj1).fmt == FileFormat.segy
+    edataobj1.cube_fformat = None  # reset to default
+
+
+def test_objectdata_format_grid(grid, gridproperty, edataobj1):
+    """Test that grid_fformat does not alter the format for a grid/gridproperty."""
+
+    edataobj1.grid_fformat = "grdcl"
+    assert objectdata_provider_factory(grid, edataobj1).fmt == FileFormat.roff
+    assert objectdata_provider_factory(gridproperty, edataobj1).fmt == FileFormat.roff
+    edataobj1.grid_fformat = None  # reset to default
+
+
+def test_objectdata_format_faultroom(faultroom_object, edataobj1):
+    """Test that dict_fformat does not alter the format for a faultroom object."""
+
+    edataobj1.dict_fformat = "csv"
+    assert (
+        objectdata_provider_factory(faultroom_object, edataobj1).fmt == FileFormat.json
+    )
+    edataobj1.dict_fformat = None  # reset to default

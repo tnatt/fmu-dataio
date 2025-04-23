@@ -303,14 +303,3 @@ class ObjectDataProvider(Provider):
         self.time0, self.time1 = start.value, stop.value if stop else None
 
         return Time(t0=start, t1=stop)
-
-    @staticmethod
-    def _validate_get_ext(fmt: str, validator: ValidFormats) -> str:
-        """Validate that fmt (file format) matches data and return legal extension."""
-        try:
-            return validator.value[fmt]
-        except KeyError as e:
-            raise ConfigurationError(
-                f"The file format {fmt} is not supported. ",
-                f"Valid formats are: {list(validator.value.keys())}",
-            ) from e
