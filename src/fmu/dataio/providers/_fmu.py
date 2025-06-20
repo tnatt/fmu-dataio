@@ -74,11 +74,13 @@ class FmuProvider(Provider):
         self,
         runcontext: RunContext,
         model: fields.Model | None = None,
+        grid_model: fields.Grid | None = None,
         workflow: str | dict[str, str] | None = None,
         object_share_path: Path | None = None,
     ) -> None:
         logger.info("Initialize %s...", self.__class__)
         self.model = model
+        self.grid_model = grid_model
         self.workflow = workflow
         self.object_share_path = object_share_path
 
@@ -123,6 +125,11 @@ class FmuProvider(Provider):
             realization=self._get_realization_meta(real_uuid),
             ert=self._get_ert_meta(),
             entity=self._get_entity_meta(case_uuid),
+            grid=(
+                self._get_grid_meta(case_uuid, ensemble_uuid, real_uuid)
+                if self.grid_model
+                else None
+            ),
         )
 
     def _establish_ensemble_and_real_name(self) -> tuple[str, str]:
@@ -228,6 +235,14 @@ class FmuProvider(Provider):
             if os.getenv(RESTART_PATH_ENVNAME)
             else None,
         )
+
+    def _get_grid_meta(
+        self, case_uuid: UUID, ensemble_uuid: UUID, real_uuid: UUID
+    ) -> fields.Grid:
+        grid_uuid = _utils.uuid_from_string(
+            f"{case_uuid}{ensemble_uuid}{real_uuid}{self.grid_model}"
+        )
+        return fields.Grid(uuid=grid_uuid, name=self.grid_model)
 
     def _get_fmucontext_meta(self) -> fields.Context:
         assert self._fmu_context is not None

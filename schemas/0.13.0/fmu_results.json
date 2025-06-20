@@ -30,6 +30,7 @@
     "fmu.ensemble.name",
     "fmu.ensemble.uuid",
     "fmu.ert.experiment.id",
+    "fmu.grid",
     "fmu.iteration.name",
     "fmu.iteration.uuid",
     "fmu.model",
@@ -1259,6 +1260,17 @@
           "anyOf": [
             {
               "$ref": "#/$defs/Ert"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "grid": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Grid"
             },
             {
               "type": "null"
@@ -3876,6 +3888,22 @@
           ],
           "title": "Relative Path",
           "type": "string"
+        },
+        "uuid": {
+          "anyOf": [
+            {
+              "format": "uuid",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "examples": [
+            "15ce3b84-766f-4c93-9050-b154861f9100"
+          ],
+          "title": "Uuid"
         }
       },
       "required": [
@@ -3883,6 +3911,30 @@
         "relative_path"
       ],
       "title": "Geometry",
+      "type": "object"
+    },
+    "Grid": {
+      "description": "The ``fmu.grid`` block contains information about the grid this\ndata object belongs to",
+      "properties": {
+        "name": {
+          "examples": "Geogrid",
+          "title": "Name",
+          "type": "string"
+        },
+        "uuid": {
+          "examples": [
+            "15ce3b84-766f-4c93-9050-b154861f9100"
+          ],
+          "format": "uuid",
+          "title": "Uuid",
+          "type": "string"
+        }
+      },
+      "required": [
+        "uuid",
+        "name"
+      ],
+      "title": "Grid",
       "type": "object"
     },
     "GridModel": {

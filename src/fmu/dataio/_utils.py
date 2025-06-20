@@ -21,6 +21,7 @@ import xtgeo
 import yaml
 
 from fmu.config import utilities as ut
+from fmu.dataio._models.fmu_results.data import Geometry
 
 from ._definitions import ERT_RELATIVE_CASE_METADATA_FILE
 from ._logging import null_logger
@@ -359,9 +360,7 @@ def read_metadata_from_file(filename: str | Path) -> dict:
         return yaml.safe_load(stream)
 
 
-def get_geometry_ref(
-    geometrypath: str | None, obj: Any
-) -> tuple[str | None, str | None]:
+def get_geometry_ref(geometrypath: str, obj: Any) -> Geometry:
     """Get a reference to a geometry.
 
     Read the metadata file for an already exported file, and returns info like this
@@ -375,8 +374,6 @@ def get_geometry_ref(
     This means that the geometry may be 'located' both on disk (relative path) and in
     Sumo
     """
-    if not geometrypath:
-        return None, None
 
     gmeta = read_metadata_from_file(geometrypath)
 
@@ -389,8 +386,9 @@ def get_geometry_ref(
 
     geom_name = gmeta["data"].get("name")
     relpath = gmeta["file"]["relative_path"]
+    uuid = gmeta.get("fmu", {}).get("grid", {}).get("uuid")
 
-    return geom_name, relpath
+    return Geometry(name=geom_name, uuid=uuid, relative_path=relpath)
 
 
 def load_config_from_path(config_path: Path) -> dict[str, Any]:

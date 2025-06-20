@@ -34,6 +34,7 @@ from .providers.objectdata._provider import (
     ObjectDataProvider,
     objectdata_provider_factory,
 )
+from .providers.objectdata._xtgeo import CPGridDataProvider
 
 if TYPE_CHECKING:
     from . import types
@@ -797,6 +798,7 @@ class ExportData:
 
     def _generate_export_metadata(self, objdata: ObjectDataProvider) -> dict[str, Any]:
         """Generate metadata for the provided ObjectDataProvider"""
+
         fmudata = (
             FmuProvider(
                 runcontext=self._runcontext,
@@ -807,6 +809,11 @@ class ExportData:
                 ),
                 workflow=self.workflow,
                 object_share_path=objdata.share_path,
+                grid_model=(
+                    objdata.name
+                    if isinstance(objdata, CPGridDataProvider)
+                    else self.grid_model
+                ),
             )
             if self._runcontext.inside_fmu
             else None

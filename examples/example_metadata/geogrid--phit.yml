@@ -1,5 +1,5 @@
 $schema: https://main-fmu-schemas-prod.radix.equinor.com/schemas/0.13.0/fmu_results.json
-_preprocessed: true
+_preprocessed: false
 access:
   asset:
     name: Drogon
@@ -7,46 +7,40 @@ access:
   ssdl:
     access_level: internal
     rep_include: false
-class: surface
+class: cpgrid_property
 data:
   alias: []
-  bbox:
-    xmax: 467483.6875
-    xmin: 456063.6875
-    ymax: 5939431.0
-    ymin: 5926551.0
-    zmax: 1933.5001220703125
-    zmin: 1554.5228271484375
-  content: depth
+  content: property
   domain_reference: msl
-  format: irap_binary
-  is_observation: true
+  format: roff
+  geometry:
+    name: geogrid
+    relative_path: example_exports/share/results/grids/geogrid.roff
+    uuid: 48454e81-1102-d53e-37ba-2c0d31384d90
+  is_observation: false
   is_prediction: true
-  layout: regular
-  name: preprocessedmap
+  layout: cornerpoint
+  name: phit
   offset: 0.0
+  property:
+    is_discrete: false
   spec:
-    ncol: 572
-    nrow: 645
-    rotation: 0.0
-    undef: 1.0e+30
-    xinc: 20.0
-    xori: 456063.6875
-    yflip: 1
-    yinc: 20.0
-    yori: 5926551.0
+    ncol: 92
+    nlay: 65
+    nrow: 146
   stratigraphic: false
   tagname: ''
   undef_is_zero: false
   unit: ''
   vertical_domain: depth
 display:
-  name: preprocessedmap
+  name: phit
 file:
   absolute_path: /some/absolute/path/
-  checksum_md5: ab0fb42049138871749c6c367d2d094f
-  relative_path: share/preprocessed/maps/mysub/preprocessedmap.gri
-  size_bytes: 1481020
+  checksum_md5: 28de771b2f3e472ff07be7a72e6db697
+  relative_path: example_exports/share/results/grids/geogrid--phit.roff
+  runpath_relative_path: share/results/grids/geogrid--phit.roff
+  size_bytes: 3492651
 fmu:
   case:
     name: MyCase
@@ -54,14 +48,30 @@ fmu:
       id: user
     uuid: 00000000-0000-0000-0000-000000000000
   context:
-    stage: case
+    stage: realization
+  ensemble:
+    id: 0
+    name: iter-0
+    uuid: 00000000-0000-0000-0000-000000000000
+  entity:
+    uuid: 00000000-0000-0000-0000-000000000000
   ert:
     experiment:
       id: 00000000-0000-0000-0000-000000000000
     simulation_mode: test_run
+  iteration:
+    id: 0
+    name: iter-0
+    uuid: 00000000-0000-0000-0000-000000000000
   model:
     name: ff
     revision: 21.1.0.dev
+  realization:
+    id: 0
+    name: example_exports
+    uuid: 00000000-0000-0000-0000-000000000000
+  workflow:
+    reference: rms property model
 masterdata:
   smda:
     coordinate_system:

@@ -589,13 +589,12 @@ class CPGridPropertyDataProvider(ObjectDataProvider):
         """Derive data.geometry for xtgeo.GridProperty."""
         logger.info("Get geometry for a GridProperty, if present")
 
-        name, relpath = get_geometry_ref(self.dataio.geometry, self.obj)
-
         # issue a warning if geometry is missing:
-        if not relpath:
+        if not self.dataio.geometry:
             lack_of_geometry_warn()
+            return None
 
-        return Geometry(name=name, relative_path=relpath) if name and relpath else None
+        return get_geometry_ref(self.dataio.geometry, self.obj)
 
     def export_to_file(self, file: Path | BytesIO) -> None:
         """Export the object to file or memory buffer"""

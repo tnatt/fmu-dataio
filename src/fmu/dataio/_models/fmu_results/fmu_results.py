@@ -49,6 +49,7 @@ class FmuResultsSchema(SchemaBase):
 
     VERSION_CHANGELOG: str = """
     #### 0.13.0
+    - `fmu.grid` added as optional field
 
     #### 0.12.0
 
@@ -157,6 +158,7 @@ class FmuResultsSchema(SchemaBase):
         "fmu.ensemble.name",
         "fmu.ensemble.uuid",
         "fmu.ert.experiment.id",
+        "fmu.grid",
         "fmu.iteration.name",
         "fmu.iteration.uuid",
         "fmu.model",

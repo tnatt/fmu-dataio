@@ -661,6 +661,17 @@ class Entity(BaseModel):
     """The unique identifier of an object entity within a case."""
 
 
+class Grid(BaseModel):
+    """The ``fmu.grid`` block contains information about the grid this
+    data object belongs to"""
+
+    uuid: UUID = Field(examples=["15ce3b84-766f-4c93-9050-b154861f9100"])
+    """The unique identifier of a grid within a case."""
+
+    name: str = Field(examples="Geogrid")
+    """The name of the grid."""
+
+
 class FMU(FMUBase):
     """
     The ``fmu`` block contains all attributes specific to FMU. The idea is that the FMU
@@ -695,6 +706,10 @@ class FMU(FMUBase):
     """The ``fmu.entity`` block identifies data objects representing the same entity
     within a case. Note, for objects exported in context ``case`` this field will
     be empty. See :class:`Ensemble`."""
+
+    grid: Grid | None = Field(default=None)
+    """The ``fmu.grid`` block contains information about the grid this
+    data object belongs to. See :class:`Grid`."""
 
     ert: Ert | None = Field(default=None)
     """The ``fmu.ert`` block contains information about the current ert run

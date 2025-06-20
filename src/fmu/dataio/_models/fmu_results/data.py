@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import warnings
 from typing import TYPE_CHECKING, Annotated, Any, Literal
+from uuid import UUID
 
 from pydantic import (
     AwareDatetime,
@@ -147,6 +148,12 @@ class Geometry(BaseModel):
 
     name: str = Field(examples=["MyGrid"])
     """The name of the grid representing the geometry being linked to."""
+
+    uuid: UUID | None = Field(
+        default=None,
+        examples=["15ce3b84-766f-4c93-9050-b154861f9100"],
+    )
+    """The unique identifier of a grid within a case."""
 
     relative_path: str = Field(examples=["some/relative/path/mygrid.roff"])
     """The relative path to the grid on disk."""
