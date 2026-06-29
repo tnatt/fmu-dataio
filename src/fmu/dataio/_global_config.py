@@ -1,5 +1,6 @@
 """Module to produce a GlobalConfiguration object or dictionary."""
 
+import contextlib
 import warnings
 from pathlib import Path
 from typing import Any, Final
@@ -13,7 +14,7 @@ from fmu.datamodels.fmu_results.global_configuration import (
     Access,
     GlobalConfiguration,
 )
-from fmu.settings import find_nearest_fmu_directory
+from fmu.settings import find_global_config, find_nearest_fmu_directory
 
 RUNPATH_GLOBAL_VARIABLES_PATH: Final[Path] = Path(
     "fmuconfig/output/global_variables.yml"
@@ -204,9 +205,30 @@ def load_global_config(
         Validated GlobalConfiguration object
     """
     if fmu_settings_global_config := load_global_config_from_fmu_settings():
+        fmu_dir = find_nearest_fmu_directory()
+
+        with contextlib.suppress(pydantic.ValidationError):
+            if find_global_config(fmu_dir.base_path, strict=False):
+                warnings.warn(
+                    "This project is configured to use FMU settings. "
+                    "Please remove the masterdata, access, model, and stratigraphy "
+                    "blocks from global_variables.yml as they are no longer used.\n"
+                    "Learn more about FMU settings: https://equinor.github.io/fmu-settings",
+                    UserWarning,
+                    stacklevel=2,
+                )
+
         return fmu_settings_global_config
 
     resolved_config_path = _resolve_global_config_path(config_path)
-    return load_global_config_from_global_variables(
+    if global_config := load_global_config_from_global_variables(
         resolved_config_path, standard_result
-    )
+    ):
+        warnings.warn(
+            "This project is not yet set up to use FMU settings.\n"
+            "Follow the 'Getting started' steps to do the necessary setup: "
+            "https://equinor.github.io/fmu-settings\n"
+            "Reading data from global_variables.yml will be deprecated in the future.",
+            FutureWarning,
+        )
+    return global_config

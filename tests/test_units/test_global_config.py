@@ -1,4 +1,5 @@
 import shutil
+import warnings
 from pathlib import Path
 from typing import Any
 from unittest.mock import patch
@@ -382,5 +383,75 @@ def test_load_global_config_from_runpath_without_dotfmu(
     shutil.copy(drogon_global_config_path, fmuconfig_output / "global_variables.yml")
 
     result = load_global_config()
+    assert isinstance(result, GlobalConfiguration)
+    assert result.model.name == "global_variables"
+
+
+def test_load_global_config_warns_when_both_sources_exist(
+    tmp_path: Path,
+    monkeypatch: MonkeyPatch,
+    drogon_global_config_path: Path,
+) -> None:
+    """Warns users to remove unused global_variables fields when .fmu/ is used."""
+    create_drogon_fmu_dir(tmp_path)
+
+    fmuconfig_output = tmp_path / "fmuconfig" / "output"
+    fmuconfig_output.mkdir(parents=True)
+    shutil.copy(drogon_global_config_path, fmuconfig_output / "global_variables.yml")
+
+    monkeypatch.chdir(tmp_path)
+
+    with pytest.warns(UserWarning, match=r"Please remove.*no longer used"):
+        result = load_global_config()
+
+    assert isinstance(result, GlobalConfiguration)
+    assert result.model.name == "Drogon"
+
+
+def test_load_global_config_does_not_warn_on_invalid_global_variables(
+    tmp_path: Path, monkeypatch: MonkeyPatch
+) -> None:
+    """Does not warn users when global_variables.yml is invalid."""
+    create_drogon_fmu_dir(tmp_path)
+
+    fmuconfig_output = tmp_path / "fmuconfig" / "output"
+    fmuconfig_output.mkdir(parents=True)
+    fmuconfig = fmuconfig_output / "global_variables.yml"
+
+    fmuconfig.write_text("invalid: data")
+
+    monkeypatch.chdir(tmp_path)
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", UserWarning)
+        result = load_global_config()
+
+    assert isinstance(result, GlobalConfiguration)
+    assert result.model.name == "Drogon"
+
+
+def test_load_global_config_warns_when_using_global_variables(
+    tmp_path: Path,
+    monkeypatch: MonkeyPatch,
+    drogon_global_config_path: Path,
+) -> None:
+    """Warns users to initialize FMU settings when loading global_variables.yml."""
+    fmuconfig_output = tmp_path / "fmuconfig" / "output"
+    fmuconfig_output.mkdir(parents=True)
+    shutil.copy(drogon_global_config_path, fmuconfig_output / "global_variables.yml")
+
+    monkeypatch.chdir(tmp_path)
+
+    with pytest.warns(FutureWarning, match="not yet set up to use FMU settings"):
+        result = load_global_config()
+
+    assert isinstance(result, GlobalConfiguration)
+    assert result.model.name == "global_variables"
+
+    monkeypatch.chdir(tmp_path)
+
+    with pytest.warns(FutureWarning, match="not yet set up to use FMU settings"):
+        result = load_global_config()
+
     assert isinstance(result, GlobalConfiguration)
     assert result.model.name == "global_variables"
