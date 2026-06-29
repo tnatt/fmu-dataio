@@ -139,8 +139,9 @@ filterwarnings = [
     # https://numpy.org/doc/stable/release/1.20.0-notes.html#size-of-np-ndarray-and-np-void-changed
     "ignore:numpy.ndarray size changed:RuntimeWarning",
     "ignore:Config contains a SUMMARY key but no forward model steps known to generate summary files:UserWarning",    
-    "ignore:This project is using FMU settings, and data is read from it.:UserWarning",
-    "ignore:This project is not yet set up to use FMU settings.:FutureWarning",
+    "ignore:This project is configured to use FMU Settings.:UserWarning",
+    "ignore:The configuration in FMU Settings is incomplete:UserWarning",
+    "ignore:This project is not yet configured to use FMU Settings:FutureWarning",
 ]
 
 [tool.coverage.run]

@@ -40,7 +40,7 @@ def test_build_global_configuration_missing_masterdata(
     """Exception raised with 'Getting started' link when 'masterdata' is missing."""
     del mock_global_config["masterdata"]
 
-    with pytest.raises(ValidationError, match="https://fmu-dataio.readthedocs.io"):
+    with pytest.raises(ValidationError, match="https://equinor.github.io/fmu-settings"):
         build_global_configuration(mock_global_config)
 
 
@@ -442,16 +442,10 @@ def test_load_global_config_warns_when_using_global_variables(
 
     monkeypatch.chdir(tmp_path)
 
-    with pytest.warns(FutureWarning, match="not yet set up to use FMU settings"):
+    with pytest.warns(FutureWarning, match="not yet configured to use FMU Settings"):
         result = load_global_config()
 
     assert isinstance(result, GlobalConfiguration)
     assert result.model.name == "global_variables"
 
     monkeypatch.chdir(tmp_path)
-
-    with pytest.warns(FutureWarning, match="not yet set up to use FMU settings"):
-        result = load_global_config()
-
-    assert isinstance(result, GlobalConfiguration)
-    assert result.model.name == "global_variables"
