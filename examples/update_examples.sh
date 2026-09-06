@@ -34,6 +34,12 @@ python metadata_scripts/create_case_metadata.py
 
 #--------- Export files and metadata using the example export scripts ---------#
 
+cd $examples_rootpath/example_exports/export_rms_data
+
+# fake running interactive in RMS
+export RUNRMS_EXEC_MODE="interactive"
+python export_preprocessed_surface.py
+
 # fake an ERT FMU run
 export _ERT_EXPERIMENT_ID=00000000-0000-0000-0000-000000000000
 export _ERT_ENSEMBLE_ID=b027f225-c45d-477d-8f33-73695217ba14
@@ -41,12 +47,10 @@ export _ERT_SIMULATION_MODE=test_run
 export _ERT_RUNPATH=$examples_rootpath/example_exports
 
 # Run examples for exporting RMS data
-cd $examples_rootpath/example_exports/export_rms_data
 python export_faultpolygons.py
 python export_polygons.py
 python export_propmaps.py
 python export_faultroom_surfaces.py
-python export_preprocessed_surface.py
 python export_surface_maps.py
 
 # Run examples for exporting non-RMS data

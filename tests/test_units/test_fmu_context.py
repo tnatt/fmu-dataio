@@ -230,16 +230,3 @@ def test_resolve_fmu_context_integration_with_preprocessed(
         preprocessed_input=True,
     )
     assert preprocessed is True
-
-
-def test_resolve_preprocessed_uses_case_context_from_realization_env(
-    runpath_no_dotfmu: Path,
-) -> None:
-    """Preprocessed exports in realization env are written at case level."""
-    context, preprocessed = _resolve_fmu_context(
-        fmu_context_input=None,
-        preprocessed_input=True,
-    )
-
-    assert context == FMUContext.case
-    assert preprocessed is True
